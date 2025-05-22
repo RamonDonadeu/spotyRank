@@ -1,0 +1,27 @@
+.rankLayout {
+    height: 100dvh;
+    width: 100dvw;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.rankLayout_body {
+    flex: 1000;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    width: min(30rem, 80vw);
+}
+
+.rankLayout_buttons {}
+
+.rankLayout_currentItemSorted {
+    background-color: blue;
+}
+
+.rankLayout_edges {
+    background-color: red;
+}
