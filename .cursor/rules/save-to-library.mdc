@@ -1,0 +1,33 @@
+---
+description: Post-ranking Save to Spotify library feature
+globs: "src/{services,components,hooks}/**/*"
+alwaysApply: false
+---
+
+# Save to Spotify library
+
+After ranking, `RankComplete` shows the final list and **Save to Spotify library**.
+
+## API (batch size 50)
+
+- Tracks: `PUT /v1/me/tracks?ids=`
+- Albums: `PUT /v1/me/albums?ids=`
+- Artists: `PUT /v1/me/following?type=artist&ids=`
+
+Implement in `spotifyLibrary.ts`; chunk with `helpers/chunkIds.ts`.
+
+## Scopes
+
+`user-library-modify`, `user-follow-modify` (+ existing auth scopes in `spotifyAuth.ts`).
+
+403 → user must reconnect with updated Dashboard scopes.
+
+## Types
+
+`RankedItem` in `apiTypes/rankedItem.ts`. Prefer track-only ranking; expand albums/artists to tracks before rank when saving order matters. Mixed lists: `saveRankedToLibrary` walks rank order.
+
+## UX
+
+Progress `Saving n/total`, success/partial failure, mock via `VITE_SPOTIFY_MOCK`.
+
+See `docs/ARCHITECTURE.md` for full flow.

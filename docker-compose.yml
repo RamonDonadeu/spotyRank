@@ -1,0 +1,26 @@
+# Local development: hot reload via Vite (HTTP on port 5173).
+# First run: docker compose run --rm dev npm ci
+# After changing .env: docker compose down && docker compose up (VITE_* read at vite start).
+services:
+  dev:
+    image: node:22-alpine
+    working_dir: /app
+    command: >
+      sh -c "
+        if [ ! -d node_modules/vite ]; then npm ci; fi &&
+        npm run dev
+      "
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Improves file watching when the project dir is bind-mounted (e.g. Windows)
+      CHOKIDAR_USEPOLLING: "true"
+
+volumes:
+  node_modules:

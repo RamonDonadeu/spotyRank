@@ -1,0 +1,20 @@
+---
+description: Core project standards for spotyRank
+alwaysApply: true
+---
+
+# spotyRank — core conventions
+
+- **Stack**: Vite + React 19 + TypeScript (strict). Match existing file layout and naming.
+- **Scope**: Make focused changes only; no drive-by refactors or unrelated files.
+- **Git**: Do **not** create commits, push, or amend history unless the user explicitly asks.
+- **Docs**: Do not add or expand markdown unless the user requests it (except when editing files they asked for).
+- **Env**: Never commit `.env` or tokens. Use `VITE_*` for client-safe Spotify config only.
+
+## Project layout
+
+- `src/components/` — UI components
+- `src/pages/` — route-level views
+- `src/hooks/` — reusable React hooks
+- `src/services/` — Spotify API and types
+- `src/helpers/` — pure utilities (e.g. ranking)

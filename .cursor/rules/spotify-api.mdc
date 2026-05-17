@@ -1,0 +1,19 @@
+---
+description: Spotify Web API integration patterns
+globs: "src/services/**/*"
+alwaysApply: false
+---
+
+# Spotify API
+
+- Centralize HTTP in `src/services/spotifyApi.ts`; keep response shapes in `src/services/apiTypes/`.
+- Read credentials from `import.meta.env.VITE_SPOTIFY_*` (see `.env.example`).
+- OAuth: PKCE for SPA; store tokens in memory or `sessionStorage`, not `localStorage` if avoidable.
+- Library save scopes: `user-library-modify`, `user-follow-modify` (see `spotifyAuth.ts`, `docs/ARCHITECTURE.md`).
+- Never log access tokens or client secrets.
+- Type search/album/track payloads; map API fields to app models in one place.
+
+```typescript
+// Example env usage
+const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID
+```

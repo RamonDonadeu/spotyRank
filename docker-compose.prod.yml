@@ -1,0 +1,12 @@
+# Smoke-test the production image locally (build + nginx on 8080).
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_SPOTIFY_CLIENT_ID: ${VITE_SPOTIFY_CLIENT_ID:-}
+        VITE_SPOTIFY_REDIRECT_URI: ${VITE_SPOTIFY_REDIRECT_URI:-}
+        VITE_SPOTIFY_MOCK: ${VITE_SPOTIFY_MOCK:-}
+    ports:
+      - "8080:8080"

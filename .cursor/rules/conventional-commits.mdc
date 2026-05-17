@@ -1,0 +1,25 @@
+---
+description: Conventional commits for semantic-release
+alwaysApply: true
+---
+
+# Conventional commits
+
+This repo uses **semantic-release** on `main`/`master`. Commit messages must follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>(<optional scope>): <short description>
+
+[optional body]
+```
+
+**Types**: `feat` (minor), `fix` (patch), `perf`, `refactor`, `docs`, `style`, `test`, `build`, `ci`, `chore`.
+
+**Breaking change**: add `!` after type or `BREAKING CHANGE:` in footer → major version.
+
+Examples:
+- `feat(rank): add binary insertion ranking step`
+- `fix(auth): handle expired Spotify token`
+- `chore: update eslint`
+
+Do not commit unless the user asks. When they do, use messages that will produce the intended release bump.

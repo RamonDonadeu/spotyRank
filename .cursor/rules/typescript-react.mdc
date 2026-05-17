@@ -1,0 +1,19 @@
+---
+description: TypeScript and React patterns for spotyRank
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# TypeScript & React
+
+- Prefer functional components and hooks; colocate styles (CSS modules or `src/css/`).
+- Keep types explicit at API boundaries (`src/services/apiTypes/`).
+- Use `strict` TypeScript; avoid `any` unless unavoidable with a short comment.
+- Async: handle errors in UI; do not swallow failures in empty `catch` blocks.
+
+```tsx
+// Prefer extracted hooks for Spotify auth / API calls
+export function useSpotifyLogin() { /* ... */ }
+```
+
+- Run `npm run lint` and `npm run build` after substantive changes.

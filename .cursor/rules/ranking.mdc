@@ -1,0 +1,31 @@
+---
+description: Ranking algorithm and list-size policy for spotyRank
+globs: src/helpers/ranking/**,src/pages/RankPage.tsx,src/components/ranking/**,docs/ARCHITECTURE.md
+---
+
+# Ranking rules
+
+## No soft cap
+
+Users may rank **unlimited** songs. Only show an informational warning when count > 25. Never block or truncate selection.
+
+## Binary pairwise placement
+
+When placing a candidate into `sortedTracks`:
+
+1. Search insertion index in range `[low, high)` (exclusive).
+2. Show **one reference track** from the sorted list at a pivot index (binary search midpoint).
+3. User picks **candidate** or **reference** (prefer which song) → narrow range; repeat until `high - low <= 1`.
+4. UI: two large cards (`SongCompareCard`) in `BinaryPlacementView` — not multi-bucket labels.
+
+Use `getNextBinaryQuestion` / `applyBinaryChoice` from `src/helpers/ranking/binaryPlacement.ts`.
+
+**Steps per song:** ~⌈log₂(n)⌉ pairwise comparisons.
+
+## Edge cases
+
+- First song: auto index 0, no UI question.
+- Prevent duplicate `Track.id` in one session.
+- Optional `Track.imageUrl` for album art; UI uses gradient placeholder when omitted.
+
+See `docs/ARCHITECTURE.md` for full detail.

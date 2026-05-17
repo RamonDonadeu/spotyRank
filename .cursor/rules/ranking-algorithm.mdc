@@ -1,0 +1,15 @@
+---
+description: Song-ranking algorithm context
+globs: src/helpers/ranking/**
+alwaysApply: false
+---
+
+# Ranking algorithm
+
+**Binary insertion sort** — insert each new song via binary search on the sorted list using **pairwise** “which do you prefer?” comparisons.
+
+- **Pros**: Clear UX; ~O(n log n) comparisons when choices are consistent; ~⌈log₂(n)⌉ steps per insertion.
+- **Cons**: More comparisons per song than quaternary bucketing; warn users above threshold (25+) informally only.
+- **UI**: `BinaryPlacementView` + `SongCompareCard`; no 4-bucket placement screen.
+
+See `docs/ARCHITECTURE.md` for modules and edge cases.
