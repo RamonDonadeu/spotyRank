@@ -1,3 +1,9 @@
+## [1.1.0](https://github.com/RamonDonadeu/spotyRank/compare/v1.0.0...v1.1.0) (2026-05-17)
+
+### Features
+
+* imporve API usage ([643da3c](https://github.com/RamonDonadeu/spotyRank/commit/643da3cd147e122b70249a4e75f391416a1c724b))
+
 ## 1.0.0 (2026-05-17)
 
 ### Features
