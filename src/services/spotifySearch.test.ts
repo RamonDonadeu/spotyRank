@@ -3,9 +3,11 @@ import { SpotifyApiError, type SpotifyFetch } from './spotifyApi.ts'
 import {
   buildArtistTrackSearchQuery,
   clampSearchLimit,
+  fetchAlbumsBatch,
   fetchAllArtistTracksAsRankTracks,
   mapSearchTrack,
   searchSpotify,
+  SPOTIFY_ALBUMS_BATCH_SIZE,
 } from './spotifySearch.ts'
 
 describe('buildArtistTrackSearchQuery', () => {
@@ -15,7 +17,7 @@ describe('buildArtistTrackSearchQuery', () => {
 })
 
 describe('fetchAllArtistTracksAsRankTracks', () => {
-  it('loads and dedupes tracks from all artist albums', async () => {
+  it('loads and dedupes tracks via batch GET /albums?ids=', async () => {
     const fetchImpl = vi.fn(async (input: RequestInfo) => {
       const url = String(input)
       if (url.includes('/artists/a1/albums')) {
@@ -29,26 +31,103 @@ describe('fetchAllArtistTracksAsRankTracks', () => {
           total: 2,
         })
       }
-      if (url.includes('/albums/alb1/tracks')) {
+      if (url.includes('/albums?') && url.includes('ids=alb1')) {
+        expect(url).toContain('market=US')
         return Response.json({
-          items: [
+          albums: [
             {
-              id: 't1',
-              name: 'One',
-              artists: [{ id: 'a1', name: 'Artist' }],
+              id: 'alb1',
+              name: 'Album 1',
+              images: [],
+              tracks: {
+                items: [
+                  {
+                    id: 't1',
+                    name: 'One',
+                    artists: [{ id: 'a1', name: 'Artist' }],
+                  },
+                ],
+                next: null,
+              },
+            },
+            {
+              id: 'alb2',
+              name: 'Album 2',
+              images: [],
+              tracks: {
+                items: [
+                  {
+                    id: 't1',
+                    name: 'One duplicate',
+                    artists: [{ id: 'a1', name: 'Artist' }],
+                  },
+                  {
+                    id: 't2',
+                    name: 'Two',
+                    artists: [{ id: 'a1', name: 'Artist' }],
+                  },
+                ],
+                next: null,
+              },
             },
           ],
-          next: null,
         })
       }
-      if (url.includes('/albums/alb2/tracks')) {
+      return new Response('Not found', { status: 404 })
+    })
+
+    const tracks = await fetchAllArtistTracksAsRankTracks(
+      'a1',
+      'Artist',
+      'token',
+      fetchImpl as SpotifyFetch,
+    )
+
+    expect(tracks).toHaveLength(2)
+    expect(tracks.map((t) => t.id).sort()).toEqual(['t1', 't2'])
+    expect(fetchImpl).toHaveBeenCalledWith(
+      expect.stringMatching(/\/albums\?.*ids=alb1%2Calb2/),
+      expect.anything(),
+    )
+    expect(
+      fetchImpl.mock.calls.some((call) => String(call[0]).includes('/albums/alb1/tracks')),
+    ).toBe(false)
+  })
+
+  it('paginates remaining tracks when batch album embed has tracks.next', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo) => {
+      const url = String(input)
+      if (url.includes('/artists/a1/albums')) {
+        return Response.json({
+          items: [{ id: 'alb1', name: 'Big album', images: [] }],
+          next: null,
+          total: 1,
+        })
+      }
+      if (url.includes('/albums?') && url.includes('ids=alb1')) {
+        return Response.json({
+          albums: [
+            {
+              id: 'alb1',
+              name: 'Big album',
+              images: [],
+              tracks: {
+                items: [
+                  {
+                    id: 't1',
+                    name: 'One',
+                    artists: [{ id: 'a1', name: 'Artist' }],
+                  },
+                ],
+                next: 'https://api.spotify.com/v1/albums/alb1/tracks?offset=1',
+              },
+            },
+          ],
+        })
+      }
+      if (url.includes('/albums/alb1/tracks') && url.includes('offset=1')) {
         return Response.json({
           items: [
-            {
-              id: 't1',
-              name: 'One duplicate',
-              artists: [{ id: 'a1', name: 'Artist' }],
-            },
             {
               id: 't2',
               name: 'Two',
@@ -68,7 +147,6 @@ describe('fetchAllArtistTracksAsRankTracks', () => {
       fetchImpl as SpotifyFetch,
     )
 
-    expect(tracks).toHaveLength(2)
     expect(tracks.map((t) => t.id).sort()).toEqual(['t1', 't2'])
   })
 
@@ -112,6 +190,29 @@ describe('fetchAllArtistTracksAsRankTracks', () => {
     await expect(
       fetchAllArtistTracksAsRankTracks('a1', '   ', 'token'),
     ).rejects.toBeInstanceOf(SpotifyApiError)
+  })
+})
+
+describe('fetchAlbumsBatch', () => {
+  it('requests up to 20 ids per call', async () => {
+    const ids = Array.from({ length: SPOTIFY_ALBUMS_BATCH_SIZE }, (_, i) => `alb${i}`)
+    const fetchImpl = vi.fn(async () =>
+      Response.json({
+        albums: ids.map((id) => ({
+          id,
+          name: id,
+          images: [],
+          tracks: { items: [], next: null },
+        })),
+      }),
+    )
+
+    await fetchAlbumsBatch(ids, 'token', fetchImpl as SpotifyFetch)
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      expect.stringContaining(`ids=${ids.join('%2C')}`),
+      expect.anything(),
+    )
   })
 })
 

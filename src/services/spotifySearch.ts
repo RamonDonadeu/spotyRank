@@ -1,6 +1,8 @@
 import type { Track } from '../helpers/ranking/types.ts'
 import type {
+  SpotifyAlbumFull,
   SpotifyAlbumTracksPage,
+  SpotifyAlbumsBatchResponse,
   SpotifyArtistAlbumSummary,
   SpotifyArtistAlbumsPage,
   SpotifySearchAlbum,
@@ -33,6 +35,9 @@ export const ARTIST_TOP_TRACKS_MARKET = 'US'
  * Album tracks pagination still allows up to 50 — see {@link SPOTIFY_ALBUM_TRACKS_PAGE_SIZE}.
  */
 export const SPOTIFY_SEARCH_LIMIT_MAX = 10
+
+/** GET /albums?ids= accepts up to 20 Spotify album IDs per request. */
+export const SPOTIFY_ALBUMS_BATCH_SIZE = 20
 
 const SPOTIFY_ALBUM_TRACKS_PAGE_SIZE = 50
 
@@ -76,6 +81,14 @@ function pickImageUrl(images: { url: string }[] | undefined): string | undefined
 
 function formatArtists(artists: { name: string }[]): string {
   return artists.map((a) => a.name).join(', ')
+}
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size))
+  }
+  return chunks
 }
 
 export function mapSearchTrack(item: SpotifySearchTrack): SearchResult {
@@ -185,15 +198,56 @@ export async function searchSpotify(
   }
 }
 
-/** Fetches all album tracks (paginated) and maps them to ranking tracks. */
+function albumRefFromFull(album: SpotifyAlbumFull): {
+  id: string
+  name: string
+  imageUrl?: string
+} {
+  return {
+    id: album.id,
+    name: album.name,
+    imageUrl: pickImageUrl(album.images),
+  }
+}
+
+export function mapAlbumFullTracksToRankTracks(album: SpotifyAlbumFull): Track[] {
+  const albumRef = albumRefFromFull(album)
+  return album.tracks.items
+    .filter(Boolean)
+    .map((item) => mapAlbumTrackToRankTrack(item, albumRef))
+}
+
+/** GET /albums?ids= — up to {@link SPOTIFY_ALBUMS_BATCH_SIZE} albums with embedded track pages. */
+export async function fetchAlbumsBatch(
+  albumIds: string[],
+  accessToken: string,
+  fetchImpl?: SpotifyFetch,
+): Promise<SpotifyAlbumFull[]> {
+  if (albumIds.length === 0) return []
+
+  const data = await spotifyGet<SpotifyAlbumsBatchResponse>(
+    '/albums',
+    accessToken,
+    {
+      ids: albumIds.join(','),
+      market: ARTIST_TOP_TRACKS_MARKET,
+    },
+    fetchImpl,
+  )
+
+  return data.albums.filter((album): album is SpotifyAlbumFull => album != null && Boolean(album.id))
+}
+
+/** Fetches album tracks (paginated) and maps them to ranking tracks. */
 export async function fetchAlbumTracksAsRankTracks(
   albumId: string,
   accessToken: string,
   fetchImpl?: SpotifyFetch,
   albumMeta?: { name: string; imageUrl?: string },
+  startOffset = 0,
 ): Promise<Track[]> {
   const tracks: Track[] = []
-  let offset = 0
+  let offset = startOffset
   const albumRef = {
     id: albumId,
     name: albumMeta?.name ?? '',
@@ -217,6 +271,26 @@ export async function fetchAlbumTracksAsRankTracks(
   }
 
   return tracks
+}
+
+async function mergeAlbumTracksInto(
+  byId: Map<string, Track>,
+  album: SpotifyAlbumFull,
+  accessToken: string,
+  fetchImpl?: SpotifyFetch,
+): Promise<void> {
+  mergeTracksUnique(byId, mapAlbumFullTracksToRankTracks(album))
+
+  if (!album.tracks.next) return
+
+  const rest = await fetchAlbumTracksAsRankTracks(
+    album.id,
+    accessToken,
+    fetchImpl,
+    albumRefFromFull(album),
+    album.tracks.items.length,
+  )
+  mergeTracksUnique(byId, rest)
 }
 
 /** Paginates GET /artists/{id}/albums for album, single, and compilation releases. */
@@ -313,31 +387,58 @@ export async function fetchAllArtistTracksAsRankTracks(
   try {
     const albums = await fetchAllArtistAlbums(artistId, accessToken, fetchImpl)
     const albumTotal = albums.length
+    let albumsLoaded = 0
 
-    for (let i = 0; i < albums.length; i++) {
-      const album = albums[i]!
-      onProgress?.({
-        albumsLoaded: i + 1,
-        albumTotal,
-        tracksCollected: byId.size,
-      })
+    for (const batch of chunkArray(albums, SPOTIFY_ALBUMS_BATCH_SIZE)) {
+      let fullById = new Map<string, SpotifyAlbumFull>()
 
       try {
-        const albumTracks = await fetchAlbumTracksAsRankTracks(
-          album.id,
+        const fullAlbums = await fetchAlbumsBatch(
+          batch.map((album) => album.id),
           accessToken,
           fetchImpl,
-          { name: album.name, imageUrl: pickImageUrl(album.images) },
         )
-        mergeTracksUnique(byId, albumTracks)
+        fullById = new Map(fullAlbums.map((album) => [album.id, album]))
       } catch (err) {
-        if (err instanceof SpotifyApiError && (err.status === 403 || err.status === 404)) {
-          if (import.meta.env.DEV) {
-            console.debug('[spotifySearch] skipping album tracks', album.id, err.status)
-          }
-          continue
+        if (!(err instanceof SpotifyApiError && (err.status === 403 || err.status === 404))) {
+          throw err
         }
-        throw err
+        if (import.meta.env.DEV) {
+          console.debug('[spotifySearch] album batch blocked; falling back per album', err.status)
+        }
+      }
+
+      for (const summary of batch) {
+        albumsLoaded += 1
+        onProgress?.({
+          albumsLoaded,
+          albumTotal,
+          tracksCollected: byId.size,
+        })
+
+        const full = fullById.get(summary.id)
+        try {
+          if (full) {
+            await mergeAlbumTracksInto(byId, full, accessToken, fetchImpl)
+            continue
+          }
+
+          const albumTracks = await fetchAlbumTracksAsRankTracks(
+            summary.id,
+            accessToken,
+            fetchImpl,
+            { name: summary.name, imageUrl: pickImageUrl(summary.images) },
+          )
+          mergeTracksUnique(byId, albumTracks)
+        } catch (err) {
+          if (err instanceof SpotifyApiError && (err.status === 403 || err.status === 404)) {
+            if (import.meta.env.DEV) {
+              console.debug('[spotifySearch] skipping album tracks', summary.id, err.status)
+            }
+            continue
+          }
+          throw err
+        }
       }
     }
 

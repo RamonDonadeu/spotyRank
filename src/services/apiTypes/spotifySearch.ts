@@ -70,6 +70,18 @@ export type SpotifyArtistAlbumsPage = {
   total: number
 }
 
+/** Full album from GET /albums?ids= (includes embedded tracks page). */
+export type SpotifyAlbumFull = {
+  id: string
+  name: string
+  images: SpotifyImage[]
+  tracks: SpotifyAlbumTracksPage
+}
+
+export type SpotifyAlbumsBatchResponse = {
+  albums: (SpotifyAlbumFull | null)[]
+}
+
 export type SpotifySearchTracksPage = {
   items: SpotifySearchTrack[]
   next: string | null
